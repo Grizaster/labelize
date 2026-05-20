@@ -87,10 +87,12 @@ cargo run -- convert testdata/amazon.zpl
 
 When you modify any rendering-related logic (parsers, elements, drawers, barcodes, fonts, encoders), you **must**:
 
-1. Run `cargo test --test e2e_diff_report -- --nocapture` to regenerate all diff images and `testdata/diffs/diff_report.txt`
+1. Run `cargo test --test e2e_diff_report -- --nocapture` to regenerate all diff images and both diff reports:
+   - `testdata/diffs/diff_report_labels.txt` — carrier/real-world labels (813×1626)
+   - `testdata/diffs/diff_report_unit.txt` — unit/synthetic tests (Labelary reference PNGs at 812×1624; renderer produces 813×1626; 1px size diff is expected)
 2. Run `cargo test --test e2e_golden` to verify diff percentages stay within per-label tolerance thresholds
-3. Review the updated `testdata/diffs/diff_report.txt` to confirm diff percentages stay within tolerance
-4. **Commit the changed files in `testdata/diffs/`** (including updated `*.png` and `diff_report.txt`) as part of the same PR
+3. Review the updated `testdata/diffs/diff_report_labels.txt` and `diff_report_unit.txt` to confirm diff percentages stay within tolerance
+4. **Commit the changed files in `testdata/diffs/`** (including updated `*.png`, `diff_report_labels.txt`, and `diff_report_unit.txt`) as part of the same PR
 
 This ensures PR reviewers can visually inspect the before/after rendering impact directly in the diff — left side is Labelary reference, right side is the current Labelize output.
 

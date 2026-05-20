@@ -55,7 +55,7 @@ pub fn labelary_render(
     rate_limit();
 
     let url = format!(
-        "http://api.labelary.com/v1/printers/{}/labels/{}x{}/0/",
+        "http://api.labelary.com/v1/printers/{}dpmm/labels/{}x{}/0/",
         dpmm, width_inches, height_inches
     );
 

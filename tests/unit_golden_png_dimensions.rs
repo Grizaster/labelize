@@ -6,13 +6,14 @@ use common::render_helpers;
 const LABELARY_WIDTH: u32 = 813;
 const LABELARY_HEIGHT: u32 = 1626;
 
-/// Unit test dimensions: 50 mm × 80 mm at 8 dpmm (unit/ golden files).
-const UNIT_WIDTH: u32 = 400;
-const UNIT_HEIGHT: u32 = 640;
+/// Unit test Labelary reference dimensions: 812 × 1624 px.
+/// Labelary returns 812×1624 for our label size due to floating-point rounding of the inch dimensions.
+const UNIT_WIDTH: u32 = 812;
+const UNIT_HEIGHT: u32 = 1624;
 
 /// Verify that every golden PNG has the expected dimensions for its directory.
 /// - `testdata/` and `testdata/labels/` → 813 × 1626 px (Labelary reference)
-/// - `testdata/unit/` → 400 × 640 px (smaller for easier visual comparison)
+    /// - `testdata/unit/` → 812 × 1624 px (Labelary reference; Labelary rounds to 812×1624)
 #[test]
 fn all_golden_pngs_have_standard_dimensions() {
     let dir = render_helpers::testdata_dir();

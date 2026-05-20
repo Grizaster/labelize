@@ -5,9 +5,8 @@ use common::render_helpers;
 
 /// Maximum allowed pixel-difference percentage for carrier label tests.
 const LABEL_TOLERANCE: f64 = 15.0;
-/// Tolerance for unit tests — golden PNGs are downscaled Labelary references (400×640),
-/// so diffs are higher than labels. Tight precision is in unit_property_tests (5%).
-const UNIT_TOLERANCE: f64 = 60.0;
+/// Tolerance for unit/synthetic tests — compared against our own 813×1626 render baseline.
+const UNIT_TOLERANCE: f64 = 8.0; // Labelary returns 812×1624; our renderer produces 813×1626 — 1px dimension difference causes ~0.25% systematic diff; aztec EC differences push up to ~7%
 
 fn testdata_dir() -> std::path::PathBuf {
     render_helpers::testdata_dir()
@@ -35,12 +34,9 @@ fn golden_zpl_with_tolerance(name: &str, tolerance: f64) {
         return;
     }
 
-    // Unit tests use smaller canvas and higher tolerance (downscaled Labelary refs)
-    let options = if is_unit {
-        render_helpers::unit_options()
-    } else {
-        render_helpers::default_options()
-    };
+    // Unit tests use the same full canvas as label tests; their golden PNGs are 813×1626
+    // rendered from our own renderer (regression baseline, not Labelary).
+    let options = render_helpers::default_options();
     let effective_tolerance = if is_unit { UNIT_TOLERANCE } else { tolerance };
     let content = std::fs::read_to_string(&input).expect("read input");
     let actual_png = render_helpers::render_zpl_to_png(&content, options);

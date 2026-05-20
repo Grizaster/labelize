@@ -1,7 +1,7 @@
 /// Auto-discovers all ZPL/EPL test files under testdata/, renders them, compares
 /// against reference PNGs, and produces two detailed diff-percentage reports:
 /// - `testdata/diffs/diff_report_labels.txt` — carrier/real-world labels (813×1626)
-/// - `testdata/diffs/diff_report_unit.txt` — unit/synthetic tests (400×640)
+/// - `testdata/diffs/diff_report_unit.txt` — unit/synthetic tests (813×1626 baseline)
 ///
 /// Run with:
 ///   cargo test --test e2e_diff_report diff_report -- --nocapture
@@ -249,8 +249,8 @@ fn diff_report_labels() {
 fn diff_report_unit() {
     let dir = render_helpers::testdata_dir();
     let dirs = vec![dir.join("unit")];
-    let entries = scan_dirs(&dirs, true);
-    let report = format_report("Unit Diff Report (400×640)", &entries);
+    let entries = scan_dirs(&dirs, false);
+    let report = format_report("Unit Diff Report (813×1626 baseline)", &entries);
 
     println!("\n{}", report);
     save_report("diff_report_unit.txt", &report);
