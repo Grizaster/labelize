@@ -13,7 +13,6 @@ exclude = [
     "testdata/",
     "docs/",
     "examples/",
-    "analyze_gd.py",
     ".github/",
     ".qoder/",
     ".kiro/",
