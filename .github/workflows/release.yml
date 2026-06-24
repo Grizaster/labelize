@@ -52,9 +52,11 @@ jobs:
           tar czf ../../../${{ matrix.artifact }} ${{ matrix.binary }}
       - name: Package (zip)
         if: matrix.package == 'zip'
+        shell: pwsh
         run: |
-          cd target/${{ matrix.target }}/release
-          7z a ../../../${{ matrix.artifact }} ${{ matrix.binary }}
+          Push-Location target/${{ matrix.target }}/release
+          Compress-Archive -Path ${{ matrix.binary }} -DestinationPath ../../../${{ matrix.artifact }}
+          Pop-Location
       - uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.artifact }}
@@ -69,18 +71,32 @@ jobs:
       - uses: actions/download-artifact@v6
         with:
           path: artifacts
+      - name: Generate checksums
+        # download-artifact nests each file under artifacts/<name>/<file>,
+        # where <name> equals the file name. Flatten so checksums.txt lists
+        # the bare archive name (e.g. "...  labelize-x86_64-unknown-linux-gnu.tar.gz").
+        run: |
+          cd artifacts
+          find . -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec sha256sum {} \; \
+            | awk '{ hash=$1; $1=""; sub(/^ +/,""); n=split($0, parts, "/"); print hash "  " parts[n] }' \
+            | sort -k2 \
+            > checksums.txt
+          cat checksums.txt
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-           generate_release_notes: true
-           files: |
-             artifacts/**/*.tar.gz
-             artifacts/**/*.zip
+          generate_release_notes: true
+          files: |
+            artifacts/**/*.tar.gz
+            artifacts/**/*.zip
+            artifacts/**/checksums.txt
 
   crates-io:
     name: Publish to crates.io
     needs: release
     runs-on: ubuntu-latest
+    # Only publish stable releases (vX.Y.Z), not prereleases like v1.0.0-rc.1.
+    if: ${{ !contains(github.ref_name, '-') }}
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -92,6 +108,8 @@ jobs:
     name: Update Homebrew Tap
     needs: crates-io
     runs-on: ubuntu-latest
+    # Only update the tap for stable releases (vX.Y.Z).
+    if: ${{ !contains(github.ref_name, '-') }}
     steps:
       - uses: actions/download-artifact@v6
         with:
