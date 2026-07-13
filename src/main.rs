@@ -10,6 +10,8 @@ use clap::{Parser, Subcommand, ValueEnum};
 #[cfg(any(feature = "cli", feature = "serve"))]
 use labelize::{DrawerOptions, EplParser, LabelInfo, Renderer, ZplParser};
 use image::imageops::FilterType;
+use image::codecs::png::PngEncoder;
+use image::ImageEncoder;
 
 #[cfg(feature = "cli")]
 #[derive(Parser)]
@@ -351,7 +353,20 @@ async fn serve(host: String, port: u16) {
         if params.preview {
             let target_width = (params.width * params.dpmm as f64).ceil() as u32;
             let target_height = (params.height * params.dpmm as f64).ceil() as u32;
-            canvas = image::imageops::resize(&canvas, target_width, target_height, FilterType::Lanczos3);
+            let canvas = image::imageops::resize(&canvas, target_width, target_height, FilterType::Triangle);
+            
+            let mut png_buf = Vec::new();
+            let gray_img = image::imageops::grayscale(&canvas);
+            if let Err(e) = PngEncoder::new(&mut png_buf)
+                .write_image(&gray_img, gray_img.width(), gray_img.height(), image::ExtendedColorType::L8)
+            {
+                return (StatusCode::INTERNAL_SERVER_ERROR, format!("png encode: {}", e)).into_response();
+            }
+            return (
+                StatusCode::OK,
+                [(header::CONTENT_TYPE, "image/png")],
+                png_buf,
+            ).into_response();
         }
 
         let mut buf = Cursor::new(Vec::new());
