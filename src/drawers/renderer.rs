@@ -430,37 +430,42 @@ impl Renderer {
         let thickness = dl.border_thickness.max(1);
 
         if thickness <= 1 {
+            let blend = |src: Rgba<u8>, dst: Rgba<u8>, alpha: f32| {
+                let a = alpha as u8;
+                Rgba([
+                    (dst[0] as i32 * (255 - a as i32) / 255 + src[0] as i32 * a as i32 / 255) as u8,
+                    (dst[1] as i32 * (255 - a as i32) / 255 + src[1] as i32 * a as i32 / 255) as u8,
+                    (dst[2] as i32 * (255 - a as i32) / 255 + src[2] as i32 * a as i32 / 255) as u8,
+                    255,
+                ])
+            };
             if dl.top_to_bottom {
-                drawing::draw_line_segment_mut(canvas, (x, y), (x + w, y + h), color);
+                drawing::draw_antialiased_line_segment_mut(canvas, (x as i32, y as i32), ((x + w) as i32, (y + h) as i32), color, blend);
             } else {
-                drawing::draw_line_segment_mut(canvas, (x, y + h), (x + w, y), color);
+                drawing::draw_antialiased_line_segment_mut(canvas, (x as i32, (y + h) as i32), ((x + w) as i32, y as i32), color, blend);
             }
         } else {
-            // Thick diagonal: fill a horizontal band of width `t` starting from the diagonal,
-            // extending to the right (positive x direction), unclipped vertically but bounded
-            // by the vertical span [y, y+h].
-            //
-            // The fill parallelogram for R (/): diagonal goes from (x+w,y) to (x,y+h).
-            //   At each row, fill starts at diag_x and extends t pixels right.
-            //   Parallelogram: (x+w, y), (x+w+t, y), (x+t, y+h), (x, y+h)
-            //
-            // The fill parallelogram for L (\): diagonal goes from (x,y) to (x+w,y+h).
-            //   At each row, fill starts at diag_x and extends t pixels right.
-            //   Parallelogram: (x, y), (x+t, y), (x+w+t, y+h), (x+w, y+h)
-            let t = (thickness - 1) as f32; // inclusive fill: t pixels wide
+            let t = (thickness - 1) as f32;
             let para = if dl.top_to_bottom {
-                // L (\)
                 [(x, y), (x + t, y), (x + w + t, y + h), (x + w, y + h)]
             } else {
-                // R (/)
                 [(x + w, y), (x + w + t, y), (x + t, y + h), (x, y + h)]
             };
 
+            let blend = |src: Rgba<u8>, dst: Rgba<u8>, alpha: f32| {
+                let a = alpha as u8;
+                Rgba([
+                    (dst[0] as i32 * (255 - a as i32) / 255 + src[0] as i32 * a as i32 / 255) as u8,
+                    (dst[1] as i32 * (255 - a as i32) / 255 + src[1] as i32 * a as i32 / 255) as u8,
+                    (dst[2] as i32 * (255 - a as i32) / 255 + src[2] as i32 * a as i32 / 255) as u8,
+                    255,
+                ])
+            };
             let points: Vec<imageproc::point::Point<i32>> = para
                 .iter()
                 .map(|(px, py)| imageproc::point::Point::new(*px as i32, *py as i32))
                 .collect();
-            drawing::draw_polygon_mut(canvas, &points, color);
+            drawing::draw_antialiased_polygon_mut(canvas, &points, color, blend);
         }
     }
 
