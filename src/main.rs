@@ -353,7 +353,8 @@ async fn serve(host: String, port: u16) {
         if params.preview {
             let target_width = (params.width * params.dpmm as f64).ceil() as u32;
             let target_height = (params.height * params.dpmm as f64).ceil() as u32;
-            let canvas = image::imageops::resize(&canvas, target_width, target_height, FilterType::Triangle);
+            let             canvas = image::imageops::resize(&canvas, target_width, target_height, FilterType::CatmullRom);
+
             
             let mut png_buf = Vec::new();
             let gray_img = image::imageops::grayscale(&canvas);
