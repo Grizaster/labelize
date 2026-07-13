@@ -42,6 +42,21 @@ impl Renderer {
         output: &mut dyn Write,
         options: DrawerOptions,
     ) -> Result<(), String> {
+        let canvas = self.draw_label_to_rgba(label, options)?;
+
+        let mut buf = Vec::new();
+        images::monochrome::encode_png(&canvas, &mut buf)
+            .map_err(|e| format!("failed to encode png: {}", e))?;
+        output
+            .write_all(&buf)
+            .map_err(|e| format!("failed to write png: {}", e))
+    }
+
+    pub fn draw_label_to_rgba(
+        &self,
+        label: &LabelInfo,
+        options: DrawerOptions,
+    ) -> Result<RgbaImage, String> {
         let options = options.with_defaults();
         let mut state = DrawerState::new();
 
@@ -119,13 +134,7 @@ impl Renderer {
             }
             canvas = final_canvas;
         }
-
-        let mut buf = Vec::new();
-        images::monochrome::encode_png(&canvas, &mut buf)
-            .map_err(|e| format!("failed to encode png: {}", e))?;
-        output
-            .write_all(&buf)
-            .map_err(|e| format!("failed to write png: {}", e))
+        Ok(canvas)
     }
 
     fn draw_element(

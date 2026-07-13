@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use clap::{Parser, Subcommand, ValueEnum};
 #[cfg(any(feature = "cli", feature = "serve"))]
 use labelize::{DrawerOptions, EplParser, LabelInfo, Renderer, ZplParser};
+use image::imageops::FilterType;
 
 #[cfg(feature = "cli")]
 #[derive(Parser)]
@@ -279,6 +280,8 @@ async fn serve(host: String, port: u16) {
         dpmm: i32,
         #[serde(default)]
         output: Option<String>,
+        #[serde(default)]
+        preview: bool,
     }
 
     fn default_width() -> f64 {
@@ -330,9 +333,30 @@ async fn serve(host: String, port: u16) {
         let want_pdf = params.output.as_deref() == Some("pdf");
 
         let renderer = Renderer::new();
+
+        let render_options = if params.preview {
+            DrawerOptions {
+                dpmm: 24,
+                ..options.clone()
+            }
+        } else {
+            options.clone()
+        };
+
+        let mut canvas = match renderer.draw_label_to_rgba(&label, render_options) {
+            Ok(c) => c,
+            Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
+        };
+
+        if params.preview {
+            let target_width = (params.width * params.dpmm as f64).ceil() as u32;
+            let target_height = (params.height * params.dpmm as f64).ceil() as u32;
+            canvas = image::imageops::resize(&canvas, target_width, target_height, FilterType::Lanczos3);
+        }
+
         let mut buf = Cursor::new(Vec::new());
-        if let Err(e) = renderer.draw_label_as_png(&label, &mut buf, options.clone()) {
-            return (StatusCode::INTERNAL_SERVER_ERROR, e).into_response();
+        if let Err(e) = labelize::encode_png(&canvas, &mut buf) {
+            return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
         }
 
         if want_pdf {
