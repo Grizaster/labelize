@@ -341,16 +341,24 @@ async fn serve(host: String, port: u16) {
 
         let renderer = Renderer::new();
 
+        let supersample = if params.preview { 4 } else { 1 };
+
         let render_options = if params.preview {
             DrawerOptions {
-                dpmm: 72,
+                dpmm: params.dpmm * supersample,
                 ..options.clone()
             }
         } else {
             options.clone()
         };
 
-        let mut canvas = match renderer.draw_label_to_rgba(&label, render_options) {
+        let render_label = if params.preview {
+            labelize::scale_label(&label, supersample as f64)
+        } else {
+            label
+        };
+
+        let canvas = match renderer.draw_label_to_rgba(&render_label, render_options) {
             Ok(c) => c,
             Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
         };
