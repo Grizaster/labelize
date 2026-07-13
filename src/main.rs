@@ -336,6 +336,7 @@ async fn serve(host: String, port: u16) {
     }
 
     async fn manage_info() -> impl IntoResponse {
+        let tz = std::env::var("TZ").unwrap_or_else(|_| "UTC".to_string());
         let body = serde_json::json!({
             "app": {
                 "name": "labelize-service",
@@ -348,6 +349,10 @@ async fn serve(host: String, port: u16) {
             },
             "labelize": {
                 "version": env!("CARGO_PKG_VERSION"),
+            },
+            "environment": {
+                "timezone": tz,
+                "lang": std::env::var("LANG").unwrap_or_default(),
             }
         });
         (
@@ -367,6 +372,13 @@ async fn serve(host: String, port: u16) {
                     || k == "HOME"
                     || k == "HOSTNAME"
                     || k == "LANG"
+                    || k == "LANGUAGE"
+                    || k == "TZ"
+                    || k == "LC_ALL"
+                    || k == "LC_CTYPE"
+                    || k == "TERM"
+                    || k == "USER"
+                    || k == "SHELL"
             })
             .collect();
         let mut env_map: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
