@@ -9,9 +9,6 @@ use std::path::{Path, PathBuf};
 use clap::{Parser, Subcommand, ValueEnum};
 #[cfg(any(feature = "cli", feature = "serve"))]
 use labelize::{DrawerOptions, EplParser, LabelInfo, Renderer, ZplParser};
-use image::imageops::FilterType;
-use image::codecs::png::PngEncoder;
-use image::ImageEncoder;
 
 #[cfg(feature = "serve")]
 mod manage {
@@ -21,7 +18,6 @@ mod manage {
     pub struct Metrics {
         pub total_requests: AtomicU64,
         pub total_renders: AtomicU64,
-        pub preview_renders: AtomicU64,
         pub pdf_renders: AtomicU64,
         pub failed_renders: AtomicU64,
         pub total_render_time_us: AtomicU64,
@@ -32,7 +28,6 @@ mod manage {
             Self {
                 total_requests: AtomicU64::new(0),
                 total_renders: AtomicU64::new(0),
-                preview_renders: AtomicU64::new(0),
                 pdf_renders: AtomicU64::new(0),
                 failed_renders: AtomicU64::new(0),
                 total_render_time_us: AtomicU64::new(0),
@@ -413,7 +408,6 @@ async fn serve(host: String, port: u16) {
 
         let body = serde_json::json!({
             "labelize.render.total": total_renders,
-            "labelize.render.preview": m.preview_renders.load(Ordering::Relaxed),
             "labelize.render.pdf": m.pdf_renders.load(Ordering::Relaxed),
             "labelize.render.failed": m.failed_renders.load(Ordering::Relaxed),
             "labelize.requests.total": m.total_requests.load(Ordering::Relaxed),
@@ -438,10 +432,6 @@ async fn serve(host: String, port: u16) {
         dpmm: i32,
         #[serde(default)]
         output: Option<String>,
-        #[serde(default)]
-        preview: bool,
-        #[serde(default = "default_scale")]
-        scale: f64,
     }
 
     fn default_width() -> f64 {
@@ -452,9 +442,6 @@ async fn serve(host: String, port: u16) {
     }
     fn default_dpmm() -> i32 {
         8
-    }
-    fn default_scale() -> f64 {
-        1.0
     }
 
     async fn convert_handler(
@@ -502,55 +489,10 @@ async fn serve(host: String, port: u16) {
 
         let renderer = Renderer::new();
 
-        let supersample = if params.preview { 4 } else { 1 };
-
-        let render_options = if params.preview {
-            DrawerOptions {
-                dpmm: params.dpmm * supersample,
-                ..options.clone()
-            }
-        } else {
-            options.clone()
-        };
-
-        let render_label = if params.preview {
-            labelize::scale_label(&label, supersample as f64)
-        } else {
-            label
-        };
-
-        let canvas = match renderer.draw_label_to_rgba(&render_label, render_options) {
+        let canvas = match renderer.draw_label_to_rgba(&label, options.clone()) {
             Ok(c) => c,
             Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
         };
-
-        if params.preview {
-            state.metrics.preview_renders.fetch_add(1, Ordering::Relaxed);
-            state.metrics.total_renders.fetch_add(1, Ordering::Relaxed);
-            state.metrics.total_render_time_us.fetch_add(render_start.elapsed().as_micros() as u64, Ordering::Relaxed);
-
-            let native_width = (params.width * params.dpmm as f64).ceil() as u32;
-            let native_height = (params.height * params.dpmm as f64).ceil() as u32;
-
-            let target_width = (native_width as f64 * params.scale).ceil() as u32;
-            let target_height = (native_height as f64 * params.scale).ceil() as u32;
-            
-            let canvas = image::imageops::resize(&canvas, target_width, target_height, FilterType::CatmullRom);
-            
-            let mut png_buf = Vec::new();
-            let gray_img = image::imageops::grayscale(&canvas);
-            if let Err(e) = PngEncoder::new(&mut png_buf)
-                .write_image(&gray_img, gray_img.width(), gray_img.height(), image::ExtendedColorType::L8)
-            {
-                return (StatusCode::INTERNAL_SERVER_ERROR, format!("png encode: {}", e)).into_response();
-            }
-            return (
-                StatusCode::OK,
-                [(header::CONTENT_TYPE, "image/png")],
-                png_buf,
-            ).into_response();
-        }
-
 
         let mut buf = Cursor::new(Vec::new());
         if let Err(e) = labelize::encode_png(&canvas, &mut buf) {
