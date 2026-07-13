@@ -284,6 +284,8 @@ async fn serve(host: String, port: u16) {
         output: Option<String>,
         #[serde(default)]
         preview: bool,
+        #[serde(default = "default_scale")]
+        scale: f64,
     }
 
     fn default_width() -> f64 {
@@ -294,6 +296,9 @@ async fn serve(host: String, port: u16) {
     }
     fn default_dpmm() -> i32 {
         8
+    }
+    fn default_scale() -> f64 {
+        1.0
     }
 
     async fn convert_handler(
@@ -351,10 +356,13 @@ async fn serve(host: String, port: u16) {
         };
 
         if params.preview {
-            let target_width = (params.width * params.dpmm as f64).ceil() as u32;
-            let target_height = (params.height * params.dpmm as f64).ceil() as u32;
-            let             canvas = image::imageops::resize(&canvas, target_width, target_height, FilterType::CatmullRom);
+            let native_width = (params.width * params.dpmm as f64).ceil() as u32;
+            let native_height = (params.height * params.dpmm as f64).ceil() as u32;
 
+            let target_width = (native_width as f64 * params.scale).ceil() as u32;
+            let target_height = (native_height as f64 * params.scale).ceil() as u32;
+            
+            let canvas = image::imageops::resize(&canvas, target_width, target_height, FilterType::CatmullRom);
             
             let mut png_buf = Vec::new();
             let gray_img = image::imageops::grayscale(&canvas);
@@ -369,6 +377,7 @@ async fn serve(host: String, port: u16) {
                 png_buf,
             ).into_response();
         }
+
 
         let mut buf = Cursor::new(Vec::new());
         if let Err(e) = labelize::encode_png(&canvas, &mut buf) {
