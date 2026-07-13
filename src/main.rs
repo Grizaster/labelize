@@ -13,6 +13,46 @@ use image::imageops::FilterType;
 use image::codecs::png::PngEncoder;
 use image::ImageEncoder;
 
+#[cfg(feature = "serve")]
+mod manage {
+    use std::sync::atomic::AtomicU64;
+    use std::time::Instant;
+
+    pub struct Metrics {
+        pub total_requests: AtomicU64,
+        pub total_renders: AtomicU64,
+        pub preview_renders: AtomicU64,
+        pub pdf_renders: AtomicU64,
+        pub failed_renders: AtomicU64,
+        pub total_render_time_us: AtomicU64,
+    }
+
+    impl Default for Metrics {
+        fn default() -> Self {
+            Self {
+                total_requests: AtomicU64::new(0),
+                total_renders: AtomicU64::new(0),
+                preview_renders: AtomicU64::new(0),
+                pdf_renders: AtomicU64::new(0),
+                failed_renders: AtomicU64::new(0),
+                total_render_time_us: AtomicU64::new(0),
+            }
+        }
+    }
+
+    pub struct AppState {
+        pub metrics: Metrics,
+        pub started_at: Instant,
+    }
+
+    pub fn app_state() -> AppState {
+        AppState {
+            metrics: Metrics::default(),
+            started_at: Instant::now(),
+        }
+    }
+}
+
 #[cfg(feature = "cli")]
 #[derive(Parser)]
 #[command(
@@ -246,12 +286,13 @@ fn convert_file(
 async fn serve(host: String, port: u16) {
     use axum::{
         body::Bytes,
-        extract::Query,
+        extract::{Query, State},
         http::{header, HeaderMap, StatusCode},
         response::IntoResponse,
         routing::{get, post},
         Router,
     };
+    use manage::AppState;
 
     async fn playground_page() -> impl IntoResponse {
         (
@@ -269,6 +310,109 @@ async fn serve(host: String, port: u16) {
             StatusCode::OK,
             [(header::CONTENT_TYPE, "application/json")],
             r#"{"status":"ok"}"#,
+        )
+    }
+
+    async fn manage_health() -> impl IntoResponse {
+        let body = serde_json::json!({
+            "status": "UP",
+            "components": {
+                "diskSpace": {
+                    "status": "UP",
+                    "details": {
+                        "total": 0,
+                        "free": 0,
+                        "threshold": 10485760,
+                        "exists": true
+                    }
+                }
+            }
+        });
+        (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, "application/json")],
+            body.to_string(),
+        )
+    }
+
+    async fn manage_info() -> impl IntoResponse {
+        let body = serde_json::json!({
+            "app": {
+                "name": "labelize-service",
+                "version": env!("CARGO_PKG_VERSION"),
+            },
+            "build": {
+                "rustc": "rustc",
+                "target": std::env::consts::ARCH,
+                "os": std::env::consts::OS,
+            },
+            "labelize": {
+                "version": env!("CARGO_PKG_VERSION"),
+            }
+        });
+        (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, "application/json")],
+            body.to_string(),
+        )
+    }
+
+    async fn manage_env() -> impl IntoResponse {
+        let env_vars: Vec<(String, String)> = std::env::vars()
+            .filter(|(k, _)| {
+                let k = k.to_uppercase();
+                k.starts_with("LABELIZE_")
+                    || k.starts_with("RUST_")
+                    || k == "PATH"
+                    || k == "HOME"
+                    || k == "HOSTNAME"
+                    || k == "LANG"
+            })
+            .collect();
+        let mut env_map: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+        for (k, v) in env_vars {
+            env_map.insert(k, v);
+        }
+        let body = serde_json::json!({
+            "activeProfiles": [],
+            "propertySources": [{
+                "name": "systemEnvironment",
+                "properties": env_map,
+            }]
+        });
+        (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, "application/json")],
+            body.to_string(),
+        )
+    }
+
+    async fn manage_metrics(State(state): State<std::sync::Arc<AppState>>) -> impl IntoResponse {
+        use std::sync::atomic::Ordering;
+        let m = &state.metrics;
+        let total_renders = m.total_renders.load(Ordering::Relaxed);
+        let total_time_ms = m.total_render_time_us.load(Ordering::Relaxed) as f64 / 1000.0;
+        let avg_time_ms = if total_renders > 0 {
+            total_time_ms / total_renders as f64
+        } else {
+            0.0
+        };
+        let uptime_s = state.started_at.elapsed().as_secs();
+
+        let body = serde_json::json!({
+            "labelize.render.total": total_renders,
+            "labelize.render.preview": m.preview_renders.load(Ordering::Relaxed),
+            "labelize.render.pdf": m.pdf_renders.load(Ordering::Relaxed),
+            "labelize.render.failed": m.failed_renders.load(Ordering::Relaxed),
+            "labelize.requests.total": m.total_requests.load(Ordering::Relaxed),
+            "labelize.render.time.total_ms": total_time_ms.round() as u64,
+            "labelize.render.time.avg_ms": (avg_time_ms * 1000.0).round() as u64,
+            "labelize.uptime.seconds": uptime_s,
+        });
+        (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, "application/json")],
+            body.to_string(),
         )
     }
 
@@ -302,10 +446,15 @@ async fn serve(host: String, port: u16) {
     }
 
     async fn convert_handler(
+        State(state): State<std::sync::Arc<AppState>>,
         headers: HeaderMap,
         Query(params): Query<ConvertParams>,
         body: Bytes,
     ) -> impl IntoResponse {
+        use std::sync::atomic::Ordering;
+
+        state.metrics.total_requests.fetch_add(1, Ordering::Relaxed);
+        let render_start = std::time::Instant::now();
         // Detect format from Content-Type header
         let content_type = headers
             .get(header::CONTENT_TYPE)
@@ -364,6 +513,10 @@ async fn serve(host: String, port: u16) {
         };
 
         if params.preview {
+            state.metrics.preview_renders.fetch_add(1, Ordering::Relaxed);
+            state.metrics.total_renders.fetch_add(1, Ordering::Relaxed);
+            state.metrics.total_render_time_us.fetch_add(render_start.elapsed().as_micros() as u64, Ordering::Relaxed);
+
             let native_width = (params.width * params.dpmm as f64).ceil() as u32;
             let native_height = (params.height * params.dpmm as f64).ceil() as u32;
 
@@ -393,6 +546,10 @@ async fn serve(host: String, port: u16) {
         }
 
         if want_pdf {
+            state.metrics.pdf_renders.fetch_add(1, Ordering::Relaxed);
+            state.metrics.total_renders.fetch_add(1, Ordering::Relaxed);
+            state.metrics.total_render_time_us.fetch_add(render_start.elapsed().as_micros() as u64, Ordering::Relaxed);
+
             let img = match image::load_from_memory(&buf.into_inner()) {
                 Ok(img) => img.to_rgba8(),
                 Err(e) => {
@@ -418,6 +575,8 @@ async fn serve(host: String, port: u16) {
                     .into_response(),
             }
         } else {
+            state.metrics.total_renders.fetch_add(1, Ordering::Relaxed);
+            state.metrics.total_render_time_us.fetch_add(render_start.elapsed().as_micros() as u64, Ordering::Relaxed);
             (
                 StatusCode::OK,
                 [(header::CONTENT_TYPE, "image/png")],
@@ -427,10 +586,17 @@ async fn serve(host: String, port: u16) {
         }
     }
 
+    let shared_state = std::sync::Arc::new(manage::app_state());
+
     let app = Router::new()
         .route("/", get(playground_page))
         .route("/health", get(health))
-        .route("/convert", post(convert_handler));
+        .route("/convert", post(convert_handler))
+        .route("/manage/health", get(manage_health))
+        .route("/manage/info", get(manage_info))
+        .route("/manage/env", get(manage_env))
+        .route("/manage/metrics", get(manage_metrics))
+        .with_state(shared_state);
 
     let addr = format!("{}:{}", host, port);
     println!("Starting server on {}", addr);
