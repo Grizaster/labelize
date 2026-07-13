@@ -343,7 +343,7 @@ async fn serve(host: String, port: u16) {
 
         let render_options = if params.preview {
             DrawerOptions {
-                dpmm: 24,
+                dpmm: 72,
                 ..options.clone()
             }
         } else {
