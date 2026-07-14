@@ -309,14 +309,35 @@ async fn serve(host: String, port: u16) {
     }
 
     async fn manage_health() -> impl IntoResponse {
+        let (disk_total, disk_free) = {
+            #[cfg(unix)]
+            {
+                use std::ffi::CString;
+                let path = CString::new("/").unwrap();
+                let mut buf = unsafe { std::mem::zeroed::<libc::statvfs>() };
+                let rc = unsafe { libc::statvfs(path.as_ptr(), &mut buf) };
+                if rc == 0 {
+                    let total = buf.f_blocks as u64 * buf.f_frsize as u64;
+                    let free = buf.f_bavail as u64 * buf.f_frsize as u64;
+                    (total, free)
+                } else {
+                    (0, 0)
+                }
+            }
+            #[cfg(not(unix))]
+            {
+                (0, 0)
+            }
+        };
+        let disk_up = disk_free > 10 * 1024 * 1024;
         let body = serde_json::json!({
             "status": "UP",
             "components": {
                 "diskSpace": {
-                    "status": "UP",
+                    "status": if disk_up { "UP" } else { "DOWN" },
                     "details": {
-                        "total": 0,
-                        "free": 0,
+                        "total": disk_total,
+                        "free": disk_free,
                         "threshold": 10485760,
                         "exists": true
                     }
@@ -360,23 +381,32 @@ async fn serve(host: String, port: u16) {
     async fn manage_env() -> impl IntoResponse {
         let env_vars: Vec<(String, String)> = std::env::vars()
             .filter(|(k, _)| {
-                let k = k.to_uppercase();
-                k.starts_with("LABELIZE_")
-                    || k.starts_with("RUST_")
-                    || k == "PATH"
-                    || k == "HOME"
-                    || k == "HOSTNAME"
-                    || k == "LANG"
-                    || k == "LANGUAGE"
-                    || k == "TZ"
-                    || k == "LC_ALL"
-                    || k == "LC_CTYPE"
-                    || k == "TERM"
-                    || k == "USER"
-                    || k == "SHELL"
+                let ku = k.to_uppercase();
+                if ku.contains("TOKEN")
+                    || ku.contains("KEY")
+                    || ku.contains("PASSWORD")
+                    || ku.contains("SECRET")
+                    || ku.contains("CREDENTIAL")
+                {
+                    return false;
+                }
+                ku.starts_with("LABELIZE_")
+                    || ku.starts_with("RUST_")
+                    || ku == "PATH"
+                    || ku == "HOME"
+                    || ku == "HOSTNAME"
+                    || ku == "LANG"
+                    || ku == "LANGUAGE"
+                    || ku == "TZ"
+                    || ku == "LC_ALL"
+                    || ku == "LC_CTYPE"
+                    || ku == "TERM"
+                    || ku == "USER"
+                    || ku == "SHELL"
             })
             .collect();
-        let mut env_map: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+        let mut env_map: std::collections::BTreeMap<String, String> =
+            std::collections::BTreeMap::new();
         for (k, v) in env_vars {
             env_map.insert(k, v);
         }
@@ -412,7 +442,7 @@ async fn serve(host: String, port: u16) {
             "labelize.render.failed": m.failed_renders.load(Ordering::Relaxed),
             "labelize.requests.total": m.total_requests.load(Ordering::Relaxed),
             "labelize.render.time.total_ms": total_time_ms.round() as u64,
-            "labelize.render.time.avg_ms": (avg_time_ms * 1000.0).round() as u64,
+            "labelize.render.time.avg_ms": avg_time_ms.round() as u64,
             "labelize.uptime.seconds": uptime_s,
         });
         (
@@ -491,27 +521,35 @@ async fn serve(host: String, port: u16) {
 
         let canvas = match renderer.draw_label_to_rgba(&label, options.clone()) {
             Ok(c) => c,
-            Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
+            Err(e) => {
+                state.metrics.failed_renders.fetch_add(1, Ordering::Relaxed);
+                return (StatusCode::INTERNAL_SERVER_ERROR, e).into_response();
+            }
         };
 
         let mut buf = Cursor::new(Vec::new());
         if let Err(e) = labelize::encode_png(&canvas, &mut buf) {
+            state.metrics.failed_renders.fetch_add(1, Ordering::Relaxed);
             return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
         }
 
         if want_pdf {
             state.metrics.pdf_renders.fetch_add(1, Ordering::Relaxed);
             state.metrics.total_renders.fetch_add(1, Ordering::Relaxed);
-            state.metrics.total_render_time_us.fetch_add(render_start.elapsed().as_micros() as u64, Ordering::Relaxed);
+            state
+                .metrics
+                .total_render_time_us
+                .fetch_add(render_start.elapsed().as_micros() as u64, Ordering::Relaxed);
 
             let img = match image::load_from_memory(&buf.into_inner()) {
                 Ok(img) => img.to_rgba8(),
                 Err(e) => {
+                    state.metrics.failed_renders.fetch_add(1, Ordering::Relaxed);
                     return (
                         StatusCode::INTERNAL_SERVER_ERROR,
                         format!("image decode: {}", e),
                     )
-                        .into_response()
+                        .into_response();
                 }
             };
             let mut pdf_buf = Cursor::new(Vec::new());
@@ -522,15 +560,21 @@ async fn serve(host: String, port: u16) {
                     pdf_buf.into_inner(),
                 )
                     .into_response(),
-                Err(e) => (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("pdf encode: {}", e),
-                )
-                    .into_response(),
+                Err(e) => {
+                    state.metrics.failed_renders.fetch_add(1, Ordering::Relaxed);
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        format!("pdf encode: {}", e),
+                    )
+                        .into_response()
+                }
             }
         } else {
             state.metrics.total_renders.fetch_add(1, Ordering::Relaxed);
-            state.metrics.total_render_time_us.fetch_add(render_start.elapsed().as_micros() as u64, Ordering::Relaxed);
+            state
+                .metrics
+                .total_render_time_us
+                .fetch_add(render_start.elapsed().as_micros() as u64, Ordering::Relaxed);
             (
                 StatusCode::OK,
                 [(header::CONTENT_TYPE, "image/png")],
