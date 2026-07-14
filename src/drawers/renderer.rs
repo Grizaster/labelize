@@ -486,9 +486,21 @@ impl Renderer {
                 ])
             };
             if dl.top_to_bottom {
-                drawing::draw_antialiased_line_segment_mut(canvas, (x as i32, y as i32), ((x + w) as i32, (y + h) as i32), color, blend);
+                drawing::draw_antialiased_line_segment_mut(
+                    canvas,
+                    (x as i32, y as i32),
+                    ((x + w) as i32, (y + h) as i32),
+                    color,
+                    blend,
+                );
             } else {
-                drawing::draw_antialiased_line_segment_mut(canvas, (x as i32, (y + h) as i32), ((x + w) as i32, y as i32), color, blend);
+                drawing::draw_antialiased_line_segment_mut(
+                    canvas,
+                    (x as i32, (y + h) as i32),
+                    ((x + w) as i32, y as i32),
+                    color,
+                    blend,
+                );
             }
         } else {
             // Thick diagonal: fill the parallelogram manually with anti-aliased edges.
@@ -534,11 +546,11 @@ impl Renderer {
                     let mut coverage = 1.0f32;
                     // Left edge AA
                     if fx < left_x {
-                        coverage *= (fx + 1.0 - left_x).max(0.0).min(1.0);
+                        coverage *= (fx + 1.0 - left_x).clamp(0.0, 1.0);
                     }
                     // Right edge AA
                     if fx + 1.0 > right_x {
-                        coverage *= (right_x - fx).max(0.0).min(1.0);
+                        coverage *= (right_x - fx).clamp(0.0, 1.0);
                     }
                     if coverage > 0.0 {
                         let dst = *canvas.get_pixel(px as u32, py as u32);
