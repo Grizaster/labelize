@@ -584,6 +584,18 @@ fn golden_qr_ft_600() {
 fn golden_qr_ft_test() {
     golden_zpl_with_tolerance("qr_ft_test", 1.0);
 }
+#[test]
+fn golden_cf_font_designator() {
+    golden_zpl_with_tolerance("cf_font_designator", 5.0);
+}
+#[test]
+fn golden_cf_font_no_orientation() {
+    golden_zpl_with_tolerance("cf_font_no_orientation", 5.0);
+}
+#[test]
+fn golden_fo_lenient_coord() {
+    golden_zpl_with_tolerance("fo_lenient_coord", 5.0);
+}
 
 // ── EPL golden tests ──────────────────────────────────────────────
 

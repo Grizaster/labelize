@@ -17,12 +17,15 @@
 ║ barcode128_mode_n_cba_sets     │ zpl  │    0.23% │      813x1626 │      813x1626 │ GOOD(<1%)    ║
 ║ barcode128_mode_u              │ zpl  │    0.62% │      813x1626 │      813x1626 │ GOOD(<1%)    ║
 ║ barcode128_rotated             │ zpl  │    0.24% │      813x1626 │      813x1626 │ GOOD(<1%)    ║
+║ cf_font_designator             │ zpl  │    0.38% │      813x1626 │      812x1624 │ GOOD(<1%)    ║
+║ cf_font_no_orientation         │ zpl  │    0.43% │      813x1626 │      812x1624 │ GOOD(<1%)    ║
 ║ cp850_hex_chars                │ zpl  │    0.56% │      813x1626 │      812x1624 │ GOOD(<1%)    ║
 ║ dhlparceluk_dhl_text           │ zpl  │    0.45% │      813x1626 │      813x1626 │ GOOD(<1%)    ║
 ║ dhlparceluk_ver                │ zpl  │    0.05% │      813x1626 │      813x1626 │ GOOD(<1%)    ║
 ║ ean13                          │ zpl  │    2.76% │      813x1626 │      813x1626 │ MINOR(<5%)   ║
 ║ edi_triangle                   │ zpl  │    0.03% │      813x1626 │      813x1626 │ GOOD(<1%)    ║
 ║ encodings_013                  │ zpl  │    1.51% │      813x1626 │      813x1626 │ MINOR(<5%)   ║
+║ fo_lenient_coord               │ zpl  │    0.27% │      813x1626 │      812x1624 │ GOOD(<1%)    ║
 ║ font_p                         │ zpl  │    0.00% │      813x1626 │      813x1626 │ PERFECT      ║
 ║ font_q                         │ zpl  │    0.00% │      813x1626 │      813x1626 │ PERFECT      ║
 ║ font_s                         │ zpl  │    0.00% │      813x1626 │      813x1626 │ PERFECT      ║
@@ -61,5 +64,5 @@
 ║ usps_priority_mail             │ zpl  │    0.54% │      813x1626 │      813x1626 │ GOOD(<1%)    ║
 ║ usps_test_merchant             │ zpl  │    0.16% │      813x1626 │      813x1626 │ GOOD(<1%)    ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
-║ Summary: 57 total │ 8 perfect │ 40 good │ 7 minor │ 2 moderate │ 0 high │ 0 skip │ 0 err
+║ Summary: 60 total │ 8 perfect │ 43 good │ 7 minor │ 2 moderate │ 0 high │ 0 skip │ 0 err
 ╚══════════════════════════════════════════════════════════════════════════════╝

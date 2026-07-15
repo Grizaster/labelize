@@ -21,12 +21,12 @@
 ║ dhlparcelit                    │ zpl  │    5.73% │      813x1626 │      813x1626 │ MODERATE(<15%) ║
 ║ dhlparceluk                    │ zpl  │    5.14% │      813x1626 │      813x1626 │ MODERATE(<15%) ║
 ║ dpdde                          │ zpl  │    3.53% │      813x1626 │      813x1626 │ MINOR(<5%)   ║
-║ dpdpl                          │ zpl  │    6.38% │      813x1626 │      813x1626 │ MODERATE(<15%) ║
+║ dpdpl                          │ zpl  │    6.36% │      813x1626 │      813x1626 │ MODERATE(<15%) ║
 ║ dpduk                          │ epl  │    5.42% │      813x1626 │      813x1626 │ MODERATE(<15%) ║
 ║ evri                           │ zpl  │    2.39% │      813x1626 │      813x1626 │ MINOR(<5%)   ║
-║ fedex                          │ zpl  │    5.77% │      813x1626 │      813x1626 │ MODERATE(<15%) ║
-║ fedex_express                  │ zpl  │   13.49% │      813x1626 │      813x1626 │ MODERATE(<15%) ║
-║ fedex_ground                   │ zpl  │   10.56% │      813x1626 │      813x1626 │ MODERATE(<15%) ║
+║ fedex                          │ zpl  │    5.74% │      813x1626 │      813x1626 │ MODERATE(<15%) ║
+║ fedex_express                  │ zpl  │   13.47% │      813x1626 │      813x1626 │ MODERATE(<15%) ║
+║ fedex_ground                   │ zpl  │   10.54% │      813x1626 │      813x1626 │ MODERATE(<15%) ║
 ║ glscz                          │ zpl  │    2.33% │      813x1626 │      813x1626 │ MINOR(<5%)   ║
 ║ glsdk_return                   │ zpl  │    4.11% │      813x1626 │      813x1626 │ MINOR(<5%)   ║
 ║ icapaket                       │ zpl  │    4.28% │      813x1626 │      813x1626 │ MINOR(<5%)   ║
